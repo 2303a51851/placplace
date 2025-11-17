@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Home Automation System</title>
+<style>
+body {
+  background: #0a0f1a;
+  color: #e0e6f5;
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+}
+h1 {
+  text-align: center;
+  color: #4dd0e1;
+}
+.container {
+  max-width: 1000px;
+  margin: auto;
+}
+.card {
+  background: #101a2b;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 15px;
+}
+button {
+  background: #4dd0e1;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+button:hover {
+  background: #0097a7;
+  color: white;
+}
+input, select {
+  padding: 8px;
+  margin-right: 8px;
+  border-radius: 5px;
+  border: 1px solid #333;
+  background: #0e1626;
+  color: #fff;
+}
+.device {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  background: #0f1c30;
+  padding: 8px;
+  border-radius: 5px;
+}
+#log {
+  height: 200px;
+  overflow-y: auto;
+  background: #0b1524;
+  padding: 8px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+.note {
+  color: #8aa1b7;
+  font-size: 13px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Smart Home Automation System</h1>
+
+  <div class="card">
+    <h3>Add New Device</h3>
+    <input id="newDeviceName" type="text" placeholder="Device Name (e.g., Kitchen Light)">
+    <select id="newDeviceType">
+      <option value="lighting">Lighting</option>
+      <option value="cooling">Cooling</option>
+      <option value="security">Security</option>
+    </select>
+    <button id="addDeviceBtn">Add Device</button>
+  </div>
+
+  <div class="card">
+    <h3>Device List</h3>
+    <div id="devicesList"></div>
+  </div>
+
+  <div class="card">
+    <h3>Voice Command</h3>
+    <button id="startVoice">Start Voice Control</button>
+    <p class="note">Say commands like “Turn on living room light” or “Set bedroom AC to 22”</p>
+  </div>
+
+  <div class="card">
+    <h3>System Log</h3>
+    <div id="log"></div>
+  </div>
+
+  <div class="card">
+    <h3>System Design Summary</h3>
+    <ul>
+      <li><b>Scalable:</b> New devices can be added easily without changing existing code.</li>
+      <li><b>Flexible:</b> Each device type (light, AC, security) works independently with the same interface.</li>
+      <li><b>Reusable:</b> Code for device modules can be reused in mobile apps, web, or IoT systems.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+// === Base Device (Reusable interface) ===
+class BaseDevice {
+  constructor(id, name, type) {
+    this.id = id;
+    this.name = name;
+    this.type = type;
+    this.status = { power: false };
+  }
+  getInfo() { return { id: this.id, name: this.name, type: this.type }; }
+  turnOn() { this.status.power = true; }
+  turnOff() { this.status.power = false; }
+  set(params) { Object.assign(this.status, params); }
+  getStatus() { return this.status; }
+}
+
+// === Lighting Module ===
+class LightingDevice extends BaseDevice {
+  constructor(id, name) { super(id, name, 'lighting'); this.status.level = 100; }
+  set(params) {
+    if (typeof params.level === 'number') this.status.level = Math.max(0, Math.min(100, params.level));
+  }
+}
+
+// === Cooling Module ===
+class CoolingDevice extends BaseDevice {
+  constructor(id, name) { super(id, name, 'cooling'); this.status.temperature = 24; }
+  set(params) {
+    if (typeof params.temperature === 'number') this.status.temperature = params.temperature;
+  }
+}
+
+// === Security Module ===
+class SecurityDevice extends BaseDevice {
+  constructor(id, name) { super(id, name, 'security'); this.status.recording = false; }
+  set(params) {
+    if (typeof params.recording === 'boolean') this.status.recording = params.recording;
+  }
+}
+
+// === DeviceManager (Loose Coupling) ===
+class DeviceManager {
+  constructor() { this.devices = new Map(); }
+  register(device) { this.devices.set(device.id, device); }
+  findByName(name) {
+    return Array.from(this.devices.values()).find(d => d.name.toLowerCase() === name.toLowerCase());
+  }
+  sendCommand(id, cmd, args) {
+    const d = this.devices.get(id);
+    if (!d) throw new Error('Device not found');
+    switch (cmd) {
+      case 'turnOn': d.turnOn(); break;
+      case 'turnOff': d.turnOff(); break;
+      case 'set': d.set(args || {}); break;
+    }
+  }
+}
+
+// === UI and Logic ===
+const manager = new DeviceManager();
+const logEl = document.getElementById('log');
+function log(...args) {
+  const line = `[${new Date().toLocaleTimeString()}] ${args.join(' ')}`;
+  logEl.innerText = line + '\\n' + logEl.innerText;
+}
+
+function renderDevices() {
+  const list = document.getElementById('devicesList');
+  list.innerHTML = '';
+  manager.devices.forEach(dev => {
+    const div = document.createElement('div');
+    div.className = 'device';
+    div.innerHTML = `
+      <div><b>${dev.name}</b><br><span class='note'>Type: ${dev.type}</span></div>
+      <div>
+        <button onclick=\"togglePower('${dev.id}')\">${dev.getStatus().power ? 'Turn Off' : 'Turn On'}</button>
+      </div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function togglePower(id) {
+  const dev = manager.devices.get(id);
+  if (!dev) return;
+  manager.sendCommand(id, dev.getStatus().power ? 'turnOff' : 'turnOn');
+  log(`${dev.name} -> ${dev.getStatus().power ? 'OFF' : 'ON'}`);
+  renderDevices();
+}
+
+document.getElementById('addDeviceBtn').addEventListener('click', () => {
+  const name = document.getElementById('newDeviceName').value.trim();
+  const type = document.getElementById('newDeviceType').value;
+  if (!name) return alert('Enter a name');
+  const id = `${type}-${Math.random().toString(36).slice(2,8)}`;
+  let dev;
+  if (type === 'lighting') dev = new LightingDevice(id, name);
+  else if (type === 'cooling') dev = new CoolingDevice(id, name);
+  else dev = new SecurityDevice(id, name);
+  manager.register(dev);
+  log('Device added:', name);
+  renderDevices();
+  document.getElementById('newDeviceName').value = '';
+});
+
+// === Preload some devices ===
+manager.register(new LightingDevice('lighting-1', 'Living Room Light'));
+manager.register(new CoolingDevice('cooling-1', 'Bedroom AC'));
+manager.register(new SecurityDevice('security-1', 'Front Door Camera'));
+renderDevices();
+log('System initialized');
+
+// === Simple Voice Commands ===
+const voiceBtn = document.getElementById('startVoice');
+let recognition;
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = 'en-US';
+  recognition.onresult = (ev) => {
+    const text = ev.results[0][0].transcript.toLowerCase();
+    log('Heard:', text);
+    handleVoice(text);
+  };
+} else {
+  voiceBtn.disabled = true;
+}
+
+voiceBtn.addEventListener('click', () => {
+  if (!recognition) return alert('Voice not supported in this browser');
+  recognition.start();
+  log('Listening... speak now');
+});
+
+function handleVoice(text) {
+  const on = text.match(/turn on (.+)/);
+  const off = text.match(/turn off (.+)/);
+  if (on) {
+    const dev = manager.findByName(on[1]);
+    if (dev) manager.sendCommand(dev.id, 'turnOn');
+  } else if (off) {
+    const dev = manager.findByName(off[1]);
+    if (dev) manager.sendCommand(dev.id, 'turnOff');
+  }
+  renderDevices();
+}
+</script>
+</body>
+</html>
